@@ -411,6 +411,7 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
             initialize=["cem", "aem"]
         )  #   cem = Cation-Exchange Membrane aem = Anion-Exchange Membrane
         self.electrode_side_set = Set(initialize=["cathode_left", "anode_right"])
+        self.flow_channel_set = Set(initialize=["concentrate", "diluate"])
         # Length var for building 1D control volume
         self.cell_length = Var(
             initialize=0.5,
@@ -542,6 +543,12 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
             units=pyunits.dimensionless,
             doc='The prosity of spacer in the ED channels. This is also referred to elsewhere as "void fraction" or "volume parameters"',
         )
+        self.effective_permeation_fraction = Var(
+            initialize=0.7,
+            bounds=(0, 1),
+            units=pyunits.dimensionless,
+            doc='',
+        )
 
         # Material and Operational properties
         self.membrane_thickness = Var(
@@ -602,6 +609,13 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
             domain=NonNegativeReals,
             units=pyunits.ohm * pyunits.meter**2,
             doc="Total areal resistance of a stack ",
+        )
+        self.thermodynamic_voltage_drop = Var(
+            initialize=1,
+            bounds=(0, None),
+            domain=NonNegativeReals,
+            units=pyunits.volts,
+            doc="Voltage loss to thermodynamics",
         )
         if self.config.operation_mode == ElectricalOperationMode.Constant_Current:
             self.current_applied = Var(
@@ -718,7 +732,7 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
                 doc="Express deltaP_term by the calculated pressure drop data, diluate.",
             )
             def eq_deltaP_diluate(self, t, x):
-                return self.diluate.deltaP[t, x] == -self.pressure_drop[t]
+                return self.diluate.deltaP[t, x] == -self.pressure_drop[t, "diluate"]
 
             @self.Constraint(
                 self.flowsheet().time,
@@ -726,7 +740,7 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
                 doc="Express deltaP_term by the calculated pressure drop data, concentrate.",
             )
             def eq_deltaP_concentrate(self, t, x):
-                return self.concentrate.deltaP[t, x] == -self.pressure_drop[t]
+                return self.concentrate.deltaP[t, x] == -self.pressure_drop[t, "concentrate"]
 
         elif self.config.pressure_drop_method == PressureDropMethod.none and (
             not self.config.has_pressure_change
@@ -756,6 +770,7 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
                 * self.cell_width
                 * self.channel_height
                 * self.spacer_porosity
+                * self.effective_permeation_fraction
                 * self.cell_pair_num
                 == self.diluate.properties[t, x].flow_vol_phase["Liq"]
             )
@@ -771,6 +786,7 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
                 * self.cell_width
                 * self.channel_height
                 * self.spacer_porosity
+                * self.effective_permeation_fraction
                 * self.cell_pair_num
                 == self.concentrate.properties[t, x].flow_vol_phase["Liq"]
             )
@@ -826,7 +842,7 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
         def eq_get_current_density(self, t, x):
             if self.config.operation_mode == ElectricalOperationMode.Constant_Current:
                 return (
-                    self.current_density_x[t, x] * self.cell_width * self.diluate.length
+                    self.current_density_x[t, x] * self.cell_width * self.diluate.length * self.effective_permeation_fraction
                     == self.current_applied[t]
                 )
             else:
@@ -898,6 +914,7 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
                             + self.potential_nonohm_membrane_x["aem", t, x]
                         )
                         * self.cell_pair_num
+                        + self.thermodynamic_voltage_drop
                         == self.voltage_x[t, x]
                     )
                 else:
@@ -909,6 +926,7 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
                             + self.potential_nonohm_membrane_x["aem", t, x]
                         )
                         * self.cell_pair_num
+                        + self.thermodynamic_voltage_drop
                         == self.voltage_x[t, x]
                     )
             else:
@@ -923,12 +941,14 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
                             + self.potential_nonohm_dl_x["aem", t, x]
                         )
                         * self.cell_pair_num
+                        + self.thermodynamic_voltage_drop
                         == self.voltage_x[t, x]
                     )
                 else:
                     return (
                         self.current_density_x[t, x]
                         * self.total_areal_resistance_x[t, x]
+                        + self.thermodynamic_voltage_drop
                         == self.voltage_x[t, x]
                     )
 
@@ -980,6 +1000,7 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
                                 )
                             )
                         )
+                        * self.effective_permeation_fraction
                         * self.cell_pair_num
                     )
                 else:
@@ -1009,6 +1030,7 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
                                 - self.diluate.properties[t, x].pressure_osm_phase[p]
                             )
                         )
+                        * self.effective_permeation_fraction
                         * self.cell_pair_num
                     )
             elif j in self.config.property_package.ion_set:
@@ -1050,6 +1072,7 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
                                 )
                             )
                         )
+                        * self.effective_permeation_fraction
                         * self.cell_pair_num
                     )
                 else:
@@ -1082,6 +1105,7 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
                                 ]
                             )
                         )
+                        * self.effective_permeation_fraction
                         * self.cell_pair_num
                     )
             else:
@@ -1100,6 +1124,7 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
                             - self.diluate.properties[t, x].conc_mol_phase_comp[p, j]
                         )
                     )
+                    * self.effective_permeation_fraction
                     * self.cell_pair_num
                 )
 
@@ -1809,6 +1834,7 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
                         * self.channel_height
                         * self.cell_width
                         * self.spacer_porosity
+                        * self.effective_permeation_fraction
                         * (self.channel_height + self.cell_width) ** -1
                     )
                 else:
@@ -1822,6 +1848,7 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
                         self.hydraulic_diameter
                         == 4
                         * self.spacer_porosity
+                        * self.effective_permeation_fraction
                         * (
                             2 * self.channel_height**-1
                             + (1 - self.spacer_porosity) * self.spacer_specific_area
@@ -1859,12 +1886,14 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
     def _pressure_drop_calculation(self):
         self.pressure_drop = Var(
             self.flowsheet().time,
+            self.flow_channel_set,
             initialize=1e4,
             units=pyunits.pascal * pyunits.meter**-1,
             doc="pressure drop per unit of length",
         )
         self.pressure_drop_total = Var(
             self.flowsheet().time,
+            self.flow_channel_set,
             initialize=1e6,
             units=pyunits.pascal,
             doc="pressure drop over an entire ED stack",
@@ -1891,11 +1920,12 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
 
             @self.Constraint(
                 self.flowsheet().time,
+                self.flow_channel_set,
                 doc="To calculate pressure drop per unit length",
             )
-            def eq_pressure_drop(self, t):
+            def eq_pressure_drop(self, t, c):
                 return (
-                    self.pressure_drop[t]
+                    self.pressure_drop[t, c]
                     == self.dens_mass
                     * self.friction_factor
                     * self.velocity_diluate[0, 0] ** 2
@@ -1930,11 +1960,12 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
 
         @self.Constraint(
             self.flowsheet().time,
+            self.flow_channel_set,
             doc="To calculate total pressure drop over a stack",
         )
-        def eq_pressure_drop_total(self, t):
+        def eq_pressure_drop_total(self, t, c):
             return (
-                self.pressure_drop_total[t] == self.pressure_drop[t] * self.cell_length
+                self.pressure_drop_total[t, c] == self.pressure_drop[t, c] * self.cell_length
             )
 
     # Intialization routines
@@ -2094,6 +2125,7 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
                         )
                     )
                     * self[k].cell_pair_num
+                    * self[k].effective_permeation_fraction
                     + self[k].electrodes_resistance
                 )
 
@@ -2153,6 +2185,10 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
             iscale.set_scaling_factor(self.cell_length, 1)
         if iscale.get_scaling_factor(self.cell_pair_num, warning=True) is None:
             iscale.set_scaling_factor(self.cell_pair_num, 0.1)
+        if iscale.get_scaling_factor(self.effective_permeation_fraction, warning=True) is None:
+            iscale.set_scaling_factor(self.effective_permeation_fraction, 1)
+        if iscale.get_scaling_factor(self.thermodynamic_voltage_drop, warning=True) is None:
+            iscale.set_scaling_factor(self.thermodynamic_voltage_drop, 1)
         if iscale.get_scaling_factor(self.membrane_thickness, warning=True) is None:
             iscale.set_scaling_factor(self.membrane_thickness, 1e4)
 
