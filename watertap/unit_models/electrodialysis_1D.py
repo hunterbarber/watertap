@@ -617,14 +617,6 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
             units=pyunits.volts,
             doc="Voltage loss to thermodynamics",
         )
-        self.electrodes_overpotential = Var(
-            self.flowsheet().time,
-            self.diluate.length_domain,
-            initialize=1,
-            bounds=(0, None),
-            domain=NonNegativeReals,
-            units=pyunits.volt,
-        )
         if self.config.operation_mode == ElectricalOperationMode.Constant_Current:
             self.current_applied = Var(
                 self.flowsheet().time,
@@ -766,16 +758,6 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
             )
 
         # -------- Add constraints ---------
-        @self.Constraint(
-            self.flowsheet().time,
-            self.diluate.length_domain,
-            doc="Overpotential from cathode and anode",
-        )
-        def eq_electrodes_overpotential(self, t, x):
-            return (self.electrodes_overpotential[t, x] == (
-                Constants.gas_constant * self.diluate.properties[t, x].temperature)
-                / (self.modified_transfer_coefficient * Constants.faraday_constant) * log(self.current_density_x[t, x] / self.exchange_current_density)
-            )
 
         @self.Constraint(
             self.flowsheet().time,
@@ -933,7 +915,6 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
                         )
                         * self.cell_pair_num
                         + self.thermodynamic_voltage_drop
-                        + self.electrodes_overpotential
                         == self.voltage_x[t, x]
                     )
                 else:
@@ -946,7 +927,6 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
                         )
                         * self.cell_pair_num
                         + self.thermodynamic_voltage_drop
-                        + self.electrodes_overpotential
                         == self.voltage_x[t, x]
                     )
             else:
@@ -962,7 +942,6 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
                         )
                         * self.cell_pair_num
                         + self.thermodynamic_voltage_drop
-                        + self.electrodes_overpotential
                         == self.voltage_x[t, x]
                     )
                 else:
@@ -970,7 +949,7 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
                         self.current_density_x[t, x]
                         * self.total_areal_resistance_x[t, x]
                         + self.thermodynamic_voltage_drop
-                        + self.electrodes_overpotential
+                        + self.electrodes_overpotential[t,x]
                         == self.voltage_x[t, x]
                     )
 
