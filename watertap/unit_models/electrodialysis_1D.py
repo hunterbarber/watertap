@@ -543,12 +543,6 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
             units=pyunits.dimensionless,
             doc='The prosity of spacer in the ED channels. This is also referred to elsewhere as "void fraction" or "volume parameters"',
         )
-        self.effective_permeation_fraction = Var(
-            initialize=0.7,
-            bounds=(0, 1),
-            units=pyunits.dimensionless,
-            doc='',
-        )
 
         # Material and Operational properties
         self.membrane_thickness = Var(
@@ -665,7 +659,7 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
             self.flowsheet().time,
             self.diluate.length_domain,
             initialize=0.9,
-            bounds=(0, 1 + 1e-10),
+            bounds=(None, None),
             units=pyunits.dimensionless,
             doc="The overall current efficiency for deionization",
         )
@@ -789,7 +783,6 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
                 * self.cell_width
                 * self.channel_height
                 * self.spacer_porosity
-                * self.effective_permeation_fraction
                 * self.cell_pair_num
                 == self.diluate.properties[t, x].flow_vol_phase["Liq"]
             )
@@ -805,7 +798,6 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
                 * self.cell_width
                 * self.channel_height
                 * self.spacer_porosity
-                * self.effective_permeation_fraction
                 * self.cell_pair_num
                 == self.concentrate.properties[t, x].flow_vol_phase["Liq"]
             )
@@ -817,7 +809,8 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
         def eq_electrodes_overpotential(self, t, x):
             return (self.electrodes_overpotential[t, x] == (
                 Constants.gas_constant * self.diluate.properties[t, x].temperature)
-                / (self.modified_transfer_coefficient * Constants.faraday_constant) * log(self.current_density_x[t, x] / self.exchange_current_density)
+                / (self.modified_transfer_coefficient * Constants.faraday_constant)
+                * log(self.current_density_x[t, x] / self.exchange_current_density)
             )
         @self.Constraint(
             self.flowsheet().time,
@@ -870,7 +863,7 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
         def eq_get_current_density(self, t, x):
             if self.config.operation_mode == ElectricalOperationMode.Constant_Current:
                 return (
-                    self.current_density_x[t, x] * self.cell_width * self.diluate.length * self.effective_permeation_fraction
+                    self.current_density_x[t, x] * self.cell_width * self.diluate.length
                     == self.current_applied[t]
                 )
             else:
@@ -888,6 +881,8 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
                                 + self.potential_nonohm_membrane_x["aem", t, x]
                             )
                             * self.cell_pair_num
+                            + self.thermodynamic_voltage_drop
+                            + self.electrodes_overpotential[t, x]
                             == self.voltage_applied[t]
                         )
                     else:
@@ -899,6 +894,8 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
                                 + self.potential_nonohm_membrane_x["aem", t, x]
                             )
                             * self.cell_pair_num
+                            + self.thermodynamic_voltage_drop
+                            + self.electrodes_overpotential[t, x]
                             == self.voltage_applied[t]
                         )
                 else:
@@ -913,12 +910,16 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
                                 + self.potential_nonohm_dl_x["aem", t, x]
                             )
                             * self.cell_pair_num
+                            + self.thermodynamic_voltage_drop
+                            + self.electrodes_overpotential[t, x]
                             == self.voltage_applied[t]
                         )
                     else:
                         return (
                             self.current_density_x[t, x]
                             * self.total_areal_resistance_x[t, x]
+                            + self.thermodynamic_voltage_drop
+                            + self.electrodes_overpotential[t, x]
                             == self.voltage_applied[t]
                         )
 
@@ -943,6 +944,7 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
                         )
                         * self.cell_pair_num
                         + self.thermodynamic_voltage_drop
+                        + self.electrodes_overpotential[t, x]
                         == self.voltage_x[t, x]
                     )
                 else:
@@ -955,6 +957,7 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
                         )
                         * self.cell_pair_num
                         + self.thermodynamic_voltage_drop
+                        + self.electrodes_overpotential[t, x]
                         == self.voltage_x[t, x]
                     )
             else:
@@ -970,6 +973,7 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
                         )
                         * self.cell_pair_num
                         + self.thermodynamic_voltage_drop
+                        + self.electrodes_overpotential[t, x]
                         == self.voltage_x[t, x]
                     )
                 else:
@@ -977,7 +981,7 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
                         self.current_density_x[t, x]
                         * self.total_areal_resistance_x[t, x]
                         + self.thermodynamic_voltage_drop
-                        + self.electrodes_overpotential[t,x]
+                        + self.electrodes_overpotential[t, x]
                         == self.voltage_x[t, x]
                     )
 
@@ -1029,7 +1033,6 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
                                 )
                             )
                         )
-                        * self.effective_permeation_fraction
                         * self.cell_pair_num
                     )
                 else:
@@ -1059,7 +1062,6 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
                                 - self.diluate.properties[t, x].pressure_osm_phase[p]
                             )
                         )
-                        * self.effective_permeation_fraction
                         * self.cell_pair_num
                     )
             elif j in self.config.property_package.ion_set:
@@ -1101,7 +1103,6 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
                                 )
                             )
                         )
-                        * self.effective_permeation_fraction
                         * self.cell_pair_num
                     )
                 else:
@@ -1134,7 +1135,6 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
                                 ]
                             )
                         )
-                        * self.effective_permeation_fraction
                         * self.cell_pair_num
                     )
             else:
@@ -1153,7 +1153,6 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
                             - self.diluate.properties[t, x].conc_mol_phase_comp[p, j]
                         )
                     )
-                    * self.effective_permeation_fraction
                     * self.cell_pair_num
                 )
 
@@ -1863,7 +1862,6 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
                         * self.channel_height
                         * self.cell_width
                         * self.spacer_porosity
-                        * self.effective_permeation_fraction
                         * (self.channel_height + self.cell_width) ** -1
                     )
                 else:
@@ -1877,7 +1875,6 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
                         self.hydraulic_diameter
                         == 4
                         * self.spacer_porosity
-                        * self.effective_permeation_fraction
                         * (
                             2 * self.channel_height**-1
                             + (1 - self.spacer_porosity) * self.spacer_specific_area
@@ -2154,7 +2151,6 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
                         )
                     )
                     * self[k].cell_pair_num
-                    * self[k].effective_permeation_fraction
                     + self[k].electrodes_resistance
                 )
 
@@ -2214,10 +2210,15 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
             iscale.set_scaling_factor(self.cell_length, 1)
         if iscale.get_scaling_factor(self.cell_pair_num, warning=True) is None:
             iscale.set_scaling_factor(self.cell_pair_num, 0.1)
-        if iscale.get_scaling_factor(self.effective_permeation_fraction, warning=True) is None:
-            iscale.set_scaling_factor(self.effective_permeation_fraction, 1)
         if iscale.get_scaling_factor(self.thermodynamic_voltage_drop, warning=True) is None:
             iscale.set_scaling_factor(self.thermodynamic_voltage_drop, 1)
+        if iscale.get_scaling_factor(self.modified_transfer_coefficient, warning=False) is None:
+            iscale.set_scaling_factor(self.modified_transfer_coefficient, 10)
+        if iscale.get_scaling_factor(self.exchange_current_density, warning=False) is None:
+            iscale.set_scaling_factor(self.exchange_current_density, 1)
+        for ind in self.electrodes_overpotential:
+            if iscale.get_scaling_factor(self.electrodes_overpotential[ind], warning=False) is None:
+                iscale.set_scaling_factor(self.electrodes_overpotential[ind], 1)
         if iscale.get_scaling_factor(self.membrane_thickness, warning=True) is None:
             iscale.set_scaling_factor(self.membrane_thickness, 1e4)
 
