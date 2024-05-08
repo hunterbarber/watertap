@@ -457,7 +457,7 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
             self.flowsheet().time,
             self.diluate.length_domain,
             initialize=0,
-            bounds=(0, 12100),
+            bounds=(0, None),
             domain=NonNegativeReals,
             units=pyunits.watt,
             doc="Electrical power consumption of a stack",
@@ -521,6 +521,13 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
             bounds=(1, 10000),
             units=pyunits.dimensionless,
             doc="cell pair number in a stack",
+        )
+        self.electrical_stage_num = Var(
+            initialize=1,
+            domain=NonNegativeReals,
+            bounds=(1, 10000),
+            units=pyunits.dimensionless,
+            doc="number of electrical stages in a stack",
         )
         # Note: domain is set as Reals for optimizaiton convenience,
         # although this var is technically integer.
@@ -599,7 +606,7 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
             self.flowsheet().time,
             self.diluate.length_domain,
             initialize=1e-2,
-            bounds=(0, 100),
+            bounds=(0, None),
             domain=NonNegativeReals,
             units=pyunits.ohm * pyunits.meter**2,
             doc="Total areal resistance of a stack ",
@@ -608,7 +615,7 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
             self.current_applied = Var(
                 self.flowsheet().time,
                 initialize=1,
-                bounds=(0, 1000),
+                bounds=(0, None),
                 units=pyunits.amp,
                 doc="Current across a cell-pair or stack, declared under the 'Constant Current' mode only",
             )
@@ -617,7 +624,7 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
             self.flowsheet().time,
             self.diluate.length_domain,
             initialize=1,
-            bounds=(0, 1000),
+            bounds=(0, None),
             units=pyunits.amp * pyunits.meter**-2,
             doc="Current density accross the membrane as a function of the normalized length",
         )
@@ -626,7 +633,7 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
             self.voltage_applied = Var(
                 self.flowsheet().time,
                 initialize=100,
-                bounds=(0, 1000),
+                bounds=(0, None),
                 units=pyunits.volt,
                 doc="Voltage across a stack, declared under the 'Constant Voltage' mode only",
             )
@@ -635,7 +642,7 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
             self.flowsheet().time,
             self.diluate.length_domain,
             initialize=100,
-            bounds=(0, 1000),
+            bounds=(0, None),
             units=pyunits.volt,
             doc="Voltage across a stack",
         )
@@ -650,7 +657,7 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
         self.specific_power_electrical = Var(
             self.flowsheet().time,
             initialize=10,
-            bounds=(0, 1000),
+            bounds=(0, None),
             domain=NonNegativeReals,
             units=pyunits.kW * pyunits.hour * pyunits.meter**-3,
             doc="Diluate-volume-flow-rate-specific electrical power consumption",
@@ -659,7 +666,7 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
             self.flowsheet().time,
             self.diluate.length_domain,
             initialize=0.9,
-            bounds=(None, None),
+            bounds=(0, None),
             units=pyunits.dimensionless,
             doc="The overall current efficiency for deionization",
         )
@@ -836,7 +843,7 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
                         )
                         * self.diluate.properties[t, x].elec_cond_phase["Liq"] ** -1
                     )
-                    * self.cell_pair_num
+                    * (self.cell_pair_num/self.electrical_stage_num)
                     + self.electrodes_resistance
                 )
             else:
@@ -851,7 +858,7 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
                             + self.diluate.properties[t, x].elec_cond_phase["Liq"] ** -1
                         )
                     )
-                    * self.cell_pair_num
+                    * (self.cell_pair_num/self.electrical_stage_num)
                     + self.electrodes_resistance
                 )
 
@@ -880,7 +887,7 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
                                 + self.potential_nonohm_membrane_x["cem", t, x]
                                 + self.potential_nonohm_membrane_x["aem", t, x]
                             )
-                            * self.cell_pair_num
+                            * (self.cell_pair_num/self.electrical_stage_num)
                             + self.thermodynamic_voltage_drop
                             + self.electrodes_overpotential[t, x]
                             == self.voltage_applied[t]
@@ -893,7 +900,7 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
                                 self.potential_nonohm_membrane_x["cem", t, x]
                                 + self.potential_nonohm_membrane_x["aem", t, x]
                             )
-                            * self.cell_pair_num
+                            * (self.cell_pair_num/self.electrical_stage_num)
                             + self.thermodynamic_voltage_drop
                             + self.electrodes_overpotential[t, x]
                             == self.voltage_applied[t]
@@ -909,7 +916,7 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
                                 + self.potential_nonohm_dl_x["cem", t, x]
                                 + self.potential_nonohm_dl_x["aem", t, x]
                             )
-                            * self.cell_pair_num
+                            * (self.cell_pair_num/self.electrical_stage_num)
                             + self.thermodynamic_voltage_drop
                             + self.electrodes_overpotential[t, x]
                             == self.voltage_applied[t]
@@ -942,7 +949,7 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
                             + self.potential_nonohm_membrane_x["cem", t, x]
                             + self.potential_nonohm_membrane_x["aem", t, x]
                         )
-                        * self.cell_pair_num
+                        * (self.cell_pair_num/self.electrical_stage_num)
                         + self.thermodynamic_voltage_drop
                         + self.electrodes_overpotential[t, x]
                         == self.voltage_x[t, x]
@@ -955,7 +962,7 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
                             self.potential_nonohm_membrane_x["cem", t, x]
                             + self.potential_nonohm_membrane_x["aem", t, x]
                         )
-                        * self.cell_pair_num
+                        * (self.cell_pair_num/self.electrical_stage_num)
                         + self.thermodynamic_voltage_drop
                         + self.electrodes_overpotential[t, x]
                         == self.voltage_x[t, x]
@@ -971,7 +978,7 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
                             + self.potential_nonohm_dl_x["cem", t, x]
                             + self.potential_nonohm_dl_x["aem", t, x]
                         )
-                        * self.cell_pair_num
+                        * (self.cell_pair_num/self.electrical_stage_num)
                         + self.thermodynamic_voltage_drop
                         + self.electrodes_overpotential[t, x]
                         == self.voltage_x[t, x]
@@ -1334,7 +1341,7 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
             self.flowsheet().time,
             self.diluate.length_domain,
             initialize=500,
-            bounds=(0, 10000),
+            bounds=(0, None),
             units=pyunits.amp * pyunits.meter**-2,
             doc="Limiting Current Density accross the membrane as a function of the normalized length",
         )
@@ -2150,7 +2157,7 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
                             ** -1
                         )
                     )
-                    * self[k].cell_pair_num
+                    * (self[k].cell_pair_num/self[k].electrical_stage_num)
                     + self[k].electrodes_resistance
                 )
 
@@ -2210,6 +2217,8 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
             iscale.set_scaling_factor(self.cell_length, 1)
         if iscale.get_scaling_factor(self.cell_pair_num, warning=True) is None:
             iscale.set_scaling_factor(self.cell_pair_num, 0.1)
+        if iscale.get_scaling_factor(self.electrical_stage_num, warning=True) is None:
+            iscale.set_scaling_factor(self.electrical_stage_num, 0.1)
         if iscale.get_scaling_factor(self.thermodynamic_voltage_drop, warning=True) is None:
             iscale.set_scaling_factor(self.thermodynamic_voltage_drop, 1)
         if iscale.get_scaling_factor(self.modified_transfer_coefficient, warning=False) is None:
@@ -2371,7 +2380,7 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
                         )
                         ** -2
                     )
-                ) ** 0.5 * iscale.get_scaling_factor(self.cell_pair_num)
+                ) ** 0.5 * (iscale.get_scaling_factor(self.cell_pair_num) / iscale.get_scaling_factor(self.electrical_stage_num))
                 iscale.set_scaling_factor(self.total_areal_resistance_x[ind], sf)
 
         for ind in self.current_density_x:
