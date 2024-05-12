@@ -1908,6 +1908,16 @@ class MCASStateBlockData(StateBlockData):
                 f"{self.name} MCAS Property Package set to use unsupported material flow basis: {self.get_material_flow_basis()}"
             )
 
+    def define_display_vars(self):
+        return {
+            "temperature": self.temperature,
+            "pressure": self.pressure,
+            "flow_mol_phase_comp": self.flow_mol_phase_comp,
+            "flow_mass_phase_comp": self.flow_mass_phase_comp,
+            "flow_vol_phase": self.flow_vol_phase,
+        }
+
+
     def assert_electroneutrality(
         self,
         tol=None,

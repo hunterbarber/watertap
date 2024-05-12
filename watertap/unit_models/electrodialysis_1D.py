@@ -525,7 +525,7 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
         self.electrical_stage_num = Var(
             initialize=1,
             domain=NonNegativeReals,
-            bounds=(1, 10000),
+            bounds=(1, 50),
             units=pyunits.dimensionless,
             doc="number of electrical stages in a stack",
         )
@@ -1957,14 +1957,24 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
                 doc="To calculate pressure drop per unit length",
             )
             def eq_pressure_drop(self, t, c):
-                return (
-                    self.pressure_drop[t, c]
-                    == self.dens_mass
-                    * self.friction_factor
-                    * self.velocity_diluate[0, 0] ** 2
-                    * 0.5
-                    * self.hydraulic_diameter**-1
-                )
+                if c == "diluate":
+                    return (
+                        self.pressure_drop[t, c]
+                        == self.dens_mass
+                        * self.friction_factor
+                        * self.velocity_diluate[0, 0] ** 2
+                        * 0.5
+                        * self.hydraulic_diameter**-1
+                    )
+                if c == "concentrate":
+                    return (
+                        self.pressure_drop[t, c]
+                        == self.dens_mass
+                        * self.friction_factor
+                        * self.velocity_concentrate[0, 0] ** 2
+                        * 0.5
+                        * self.hydraulic_diameter**-1
+                    )
 
             if self.config.friction_factor_method == FrictionFactorMethod.fixed:
                 _log.warning("Do not forget to FIX the Darcy's friction factor value!")

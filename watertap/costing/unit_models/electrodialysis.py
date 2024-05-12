@@ -102,8 +102,13 @@ def cost_electrodialysis_stack(blk):
                         * blk.unit_model.cell_width
                         * blk.unit_model.cell_length
                     )
-                    + blk.costing_package.electrodialysis.stack_electrode_captical_cost*blk.unit_model.electrical_stage_num
-                    * (2 * blk.unit_model.cell_width * blk.unit_model.cell_length),
+                    + blk.costing_package.electrodialysis.stack_electrode_captical_cost
+                    * (
+                        2
+                        * blk.unit_model.electrical_stage_num
+                        * blk.unit_model.cell_width
+                        * blk.unit_model.cell_length
+                    ),
                     to_units=blk.costing_package.base_currency,
                 )
                 + blk.capital_cost_rectifier
@@ -121,8 +126,13 @@ def cost_electrodialysis_stack(blk):
                     * blk.unit_model.cell_width
                     * blk.unit_model.cell_length
                 )
-                + blk.costing_package.electrodialysis.stack_electrode_captical_cost*blk.unit_model.electrical_stage_num
-                * (2 * blk.unit_model.cell_width * blk.unit_model.cell_length),
+                + blk.costing_package.electrodialysis.stack_electrode_captical_cost
+                * (
+                    2
+                    * blk.unit_model.electrical_stage_num
+                    * blk.unit_model.cell_width
+                    * blk.unit_model.cell_length
+                ),
                 to_units=blk.costing_package.base_currency,
             )
         )
@@ -138,8 +148,13 @@ def cost_electrodialysis_stack(blk):
                 * blk.unit_model.cell_length
             )
             + blk.costing_package.electrodialysis.factor_stack_electrode_replacement
-            * blk.costing_package.electrodialysis.stack_electrode_captical_cost*blk.unit_model.electrical_stage_num
-            * (2 * blk.unit_model.cell_width * blk.unit_model.cell_length),
+            * blk.costing_package.electrodialysis.stack_electrode_captical_cost
+            * (
+                2
+                * blk.unit_model.electrical_stage_num
+                * blk.unit_model.cell_width
+                * blk.unit_model.cell_length
+            ),
             to_units=blk.costing_package.base_currency
             / blk.costing_package.base_period,
         )

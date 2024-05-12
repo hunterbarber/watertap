@@ -169,7 +169,7 @@ def cost_rectifier(blk, power=100 * pyo.units.kW, ac_dc_conversion_efficiency=0.
     """
 
     # create variables on cost block
-    make_capital_cost_var(blk)
+    # make_capital_cost_var(blk)
     blk.ac_dc_conversion_efficiency = pyo.Expression(
         expr=ac_dc_conversion_efficiency,
         doc="fixing unit model vairable for upscaling required power considering "
