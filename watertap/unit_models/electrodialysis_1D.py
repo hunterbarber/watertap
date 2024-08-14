@@ -550,6 +550,12 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
             units=pyunits.dimensionless,
             doc='The porosity of spacer in the ED channels. This is also referred to elsewhere as "void fraction" or "volume parameters"',
         )
+        self.effective_permeation_fraction = Var(
+            initialize=0.7,
+            bounds=(0.01, 1),
+            units=pyunits.dimensionless,
+            doc='The fraction of flow channel area to solid spacer area for permeation',
+        )
 
         # Material and Operational properties
         self.membrane_thickness = Var(
@@ -790,6 +796,7 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
                 * self.cell_width
                 * self.channel_height
                 * self.spacer_porosity
+                * self.effective_permeation_fraction
                 * self.cell_pair_num
                 == self.diluate.properties[t, x].flow_vol_phase["Liq"]
             )
@@ -805,6 +812,7 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
                 * self.cell_width
                 * self.channel_height
                 * self.spacer_porosity
+                * self.effective_permeation_fraction
                 * self.cell_pair_num
                 == self.concentrate.properties[t, x].flow_vol_phase["Liq"]
             )
@@ -1041,6 +1049,7 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
                             )
                         )
                         * self.cell_pair_num
+                        * self.effective_permeation_fraction
                     )
                 else:
                     return (
@@ -1070,6 +1079,7 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
                             )
                         )
                         * self.cell_pair_num
+                        * self.effective_permeation_fraction
                     )
             elif j in self.config.property_package.ion_set:
                 if self.config.has_Nernst_diffusion_layer:
@@ -1111,6 +1121,7 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
                             )
                         )
                         * self.cell_pair_num
+                        * self.effective_permeation_fraction
                     )
                 else:
                     return (
@@ -1143,6 +1154,7 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
                             )
                         )
                         * self.cell_pair_num
+                        * self.effective_permeation_fraction
                     )
             else:
                 return (
@@ -1161,6 +1173,7 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
                         )
                     )
                     * self.cell_pair_num
+                    * self.effective_permeation_fraction
                 )
 
         # Mass Transfer for the Concentrate
@@ -1869,6 +1882,7 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
                         * self.channel_height
                         * self.cell_width
                         * self.spacer_porosity
+                        * self.effective_permeation_fraction
                         * (self.channel_height + self.cell_width) ** -1
                     )
                 else:
@@ -1882,6 +1896,7 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
                         self.hydraulic_diameter
                         == 4
                         * self.spacer_porosity
+                        * self.effective_permeation_fraction
                         * (
                             2 * self.channel_height**-1
                             + (1 - self.spacer_porosity) * self.spacer_specific_area
@@ -2268,6 +2283,8 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
             iscale.set_scaling_factor(self.channel_height, 1e4)
         if iscale.get_scaling_factor(self.spacer_porosity, warning=True) is None:
             iscale.set_scaling_factor(self.spacer_porosity, 1)
+        if iscale.get_scaling_factor(self.effective_permeation_fraction, warning=True) is None:
+            iscale.set_scaling_factor(self.effective_permeation_fraction, 1)
         if iscale.get_scaling_factor(self.electrodes_resistance, warning=True) is None:
             iscale.set_scaling_factor(self.electrodes_resistance, 1e4)
         for ind in self.velocity_diluate:

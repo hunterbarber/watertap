@@ -102,7 +102,7 @@ def cost_electrodialysis_stack(blk):
                         * blk.unit_model.cell_width
                         * blk.unit_model.cell_length
                     )
-                    + blk.costing_package.electrodialysis.stack_electrode_captical_cost
+                    + blk.costing_package.electrodialysis.stack_electrode_capital_cost
                     * (
                         2
                         * blk.unit_model.electrical_stage_num
@@ -126,7 +126,7 @@ def cost_electrodialysis_stack(blk):
                     * blk.unit_model.cell_width
                     * blk.unit_model.cell_length
                 )
-                + blk.costing_package.electrodialysis.stack_electrode_captical_cost
+                + blk.costing_package.electrodialysis.stack_electrode_capital_cost
                 * (
                     2
                     * blk.unit_model.electrical_stage_num
@@ -148,7 +148,7 @@ def cost_electrodialysis_stack(blk):
                 * blk.unit_model.cell_length
             )
             + blk.costing_package.electrodialysis.factor_stack_electrode_replacement
-            * blk.costing_package.electrodialysis.stack_electrode_captical_cost
+            * blk.costing_package.electrodialysis.stack_electrode_capital_cost
             * (
                 2
                 * blk.unit_model.electrical_stage_num
