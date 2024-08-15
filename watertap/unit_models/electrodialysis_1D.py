@@ -700,19 +700,19 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
         )
         self.thermodynamic_voltage_drop = Var(
             initialize=1,
-            bounds=(0, None),
+            bounds=(1e-8, 10),
             domain=NonNegativeReals,
             units=pyunits.volt,
         )
         self.modified_transfer_coefficient = Var(
             initialize=0.5,
-            bounds=(0, 1),
+            bounds=(1e-8, 1),
             domain=NonNegativeReals,
             units=pyunits.dimensionless,
         )
         self.exchange_current_density = Var(
             initialize=10,
-            bounds=(0, None),
+            bounds=(1e-8, 100),
             domain=NonNegativeReals,
             units=pyunits.amp * pyunits.meter**-2,
         )
@@ -720,7 +720,7 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
             self.flowsheet().time,
             self.diluate.length_domain,
             initialize=1,
-            bounds=(0, None),
+            bounds=(0, 100),
             domain=NonNegativeReals,
             units=pyunits.volt,
         )
@@ -784,6 +784,24 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
             )
 
         # -------- Add constraints ---------
+
+        @self.Constraint(
+            self.membrane_set,
+            doc="Sum transport numbers",
+        )
+        def eq_transport_number(self, mem):
+            return 1 == sum(self.ion_trans_number_membrane[mem, j] for j in self.ion_set)
+
+        @self.Constraint(
+            self.membrane_set,
+            doc="Electroneutrality in membrane phase during diffusion",
+        )
+        def eq_membrane_electroneutrality(self, mem):
+            return sum(
+                        self.config.property_package.charge_comp[j] * self.solute_diffusivity_membrane[mem, j]
+                        for j in self.ion_set
+                    ) == 0
+
 
         @self.Constraint(
             self.flowsheet().time,
