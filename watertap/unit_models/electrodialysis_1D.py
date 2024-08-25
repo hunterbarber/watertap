@@ -669,7 +669,7 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
             self.flowsheet().time,
             self.diluate.length_domain,
             initialize=0.9,
-            bounds=(0, 1.2),
+            bounds=(-1.2, 1.2),
             units=pyunits.dimensionless,
             doc="The overall current efficiency for deionization",
         )
