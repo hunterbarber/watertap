@@ -28,7 +28,11 @@ from pyomo.dae import (
 from pyomo.common.config import ConfigBlock, ConfigValue, In, Bool
 
 # Import Watertap cores
-from watertap.core.util.initialization import check_solve, check_dof
+from watertap.core.util.initialization import (
+    check_solve,
+    check_dof,
+    interval_initializer,
+)
 
 # Import IDAES cores
 from idaes.core import (
@@ -2208,39 +2212,9 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
         init_log.info_high("Initialization Step 2 Complete.")
         # ---------------------------------------------------------------------
         # Solve unit
+        if not ignore_dof:
+            check_dof(self, fail_flag=fail_on_warning, logger=init_log)
 
-        # for k in self.keys():
-        #     for set in self[k].diluate.properties:
-        #         self[k].electrodes_overpotential[set].set_value(
-        #             Constants.gas_constant * self[k].diluate.properties[set].temperature
-        #             / self[k].modified_transfer_coefficient / Constants.faraday_constant
-        #             * log(self[k].current_density_x[set] / self[k].exchange_current_density)
-        #         )
-        #         self[k].membrane_areal_resistance[set].set_value(
-        #             self[k].membrane_resistance_a + self[k].membrane_resistance_b / (
-        #                     sum(
-        #                         self[k].diluate.properties[set].conc_mol_phase_comp["Liq", j]
-        #                         + self[k].concentrate.properties[set].conc_mol_phase_comp["Liq", j]
-        #                         for j in self[k].cation_set) / (pyunits.mol / pyunits.m ** 3)
-        #                     / len(self[k].flow_channel_set)
-        #             )
-        #         )
-        #         self[k].total_areal_resistance_x[set].set_value(
-        #             (
-        #                 self[k].membrane_areal_resistance
-        #                 + self[k].channel_height
-        #                 * (
-        #                     self[k].concentrate.properties[set].elec_cond_phase["Liq"]
-        #                     ** -1
-        #                     + self[k].diluate.properties[set].elec_cond_phase["Liq"]
-        #                     ** -1
-        #                 )
-        #             )
-        #             * self[k].cell_pair_num
-        #             + self[k].electrodes_resistance
-        #         )
-
-        from watertap.core.util.initialization import interval_initializer
         # pre-solve using interval arithmetic
         self.diluate.material_flow_dx[:, :, :, :].set_value(-1e-4)
         self.diluate.pressure_dx[:, :].set_value(-1e-4)
@@ -2248,9 +2222,6 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
         self.concentrate.material_flow_dx[:, :, :, :].set_value(1e-4)
         self.concentrate.pressure_dx[:, :].set_value(-1e-4)
         interval_initializer(self)
-
-        if not ignore_dof:
-            check_dof(self, fail_flag=fail_on_warning, logger=init_log)
 
         with idaeslog.solver_log(solve_log, idaeslog.DEBUG) as slc:
             res = opt.solve(self, tee=slc.tee)
@@ -2268,29 +2239,6 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
         init_log.info("Initialization Complete: {}".format(idaeslog.condition(res)))
 
         if not check_optimal_termination(res):
-            import idaes.core.util.model_statistics as istat
-            if not res.solver.termination_condition == "optimal":
-
-                badly_scaled_var_list = iscale.badly_scaled_var_generator(self, large=1e4, small=1e-4)
-                print("\n----------------   badly scaled variables   ----------------")
-                for x in badly_scaled_var_list:
-                    print(f"{x[0].name:<80s}{value(x[0]):<20.5e}sf: {iscale.get_scaling_factor(x[0]):<20.5e}")
-
-                print("\n---------------- variables near bounds ----------------")
-                variables_near_bounds_list = istat.variables_near_bounds_generator(self, abs_tol=1e-8, rel_tol=1e-8)
-                for x in variables_near_bounds_list:
-                    print(f"{x.name:<80s}{value(x):<20.5e}")
-
-                print("\n---------------- violated constraints ----------------")
-                total_constraints_set_list = istat.total_constraints_set(self)
-                for x in total_constraints_set_list:
-                    try:
-                        residual = abs(value(x.body) - value(x.lb))
-                    except:
-                        residual = abs(value(x.body) - value(x.ub))
-                    if residual > 1e-8:
-                        print(f"{x.name:<80s}{residual:<20.5e}")
-
             raise InitializationError(f"Unit model {self.name} failed to initialize")
 
     def calculate_scaling_factors(self):
