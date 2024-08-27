@@ -44,6 +44,7 @@ from idaes.core import (
     useDefault,
 )
 from idaes.core.util.constants import Constants
+from idaes.core.util.math import smooth_min
 from watertap.core.solvers import get_solver
 from idaes.core.util.tables import create_stream_table_dataframe
 from idaes.core.util.config import is_physical_parameter_block
@@ -834,11 +835,12 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
             return (
                 self.membrane_areal_resistance[t, x] ==
                 self.membrane_resistance_a + self.membrane_resistance_b / (
-                        sum(
-                            self.diluate.properties[t, x].conc_mol_phase_comp["Liq", j]
-                            + self.concentrate.properties[t, x].conc_mol_phase_comp["Liq", j]
-                            for j in self.cation_set) / (pyunits.mol / pyunits.m ** 3)
-                        / len(self.flow_channel_set)
+                    smooth_min(
+                        sum(self.diluate.properties[t, x].conc_mol_phase_comp["Liq", j]
+                            for j in self.cation_set) / (pyunits.mol / pyunits.m**3),
+                        sum(self.concentrate.properties[t, x].conc_mol_phase_comp["Liq", j]
+                            for j in self.cation_set) / (pyunits.mol / pyunits.m**3),
+                    )
                 )
         )
         @self.Constraint(
@@ -1465,7 +1467,7 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
             def eq_current_dens_lim_x(self, t, x):
                 return self.current_dens_lim_x[
                     t, x
-                ] == self.N_Sh * self.diffus_mass * self.hydraulic_diameter**-1 * Constants.faraday_constant * (
+                ] == self.N_Sh[t, x] * self.diffus_mass * self.hydraulic_diameter**-1 * Constants.faraday_constant * (
                     sum(
                         self.ion_trans_number_membrane["cem", j]
                         / self.config.property_package.charge_comp[j]
