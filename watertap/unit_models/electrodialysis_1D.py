@@ -44,7 +44,6 @@ from idaes.core import (
     useDefault,
 )
 from idaes.core.util.constants import Constants
-from idaes.core.util.math import smooth_min
 from watertap.core.solvers import get_solver
 from idaes.core.util.tables import create_stream_table_dataframe
 from idaes.core.util.config import is_physical_parameter_block
@@ -835,12 +834,8 @@ class Electrodialysis1DData(InitializationMixin, UnitModelBlockData):
             return (
                 self.membrane_areal_resistance[t, x] ==
                 self.membrane_resistance_a + self.membrane_resistance_b / (
-                    smooth_min(
-                        sum(self.diluate.properties[t, x].conc_mol_phase_comp["Liq", j]
-                            for j in self.cation_set) / (pyunits.mol / pyunits.m**3),
-                        sum(self.concentrate.properties[t, x].conc_mol_phase_comp["Liq", j]
-                            for j in self.cation_set) / (pyunits.mol / pyunits.m**3),
-                    )
+                    sum(self.diluate.properties[t, x].conc_mol_phase_comp["Liq", j]
+                        for j in self.cation_set) / (pyunits.mol / pyunits.m**3)
                 )
         )
         @self.Constraint(
