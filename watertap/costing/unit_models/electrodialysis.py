@@ -89,6 +89,12 @@ def cost_electrodialysis_stack(blk):
     make_capital_cost_var(blk)
     make_fixed_operating_cost_var(blk)
     blk.costing_package.add_cost_factor(blk, "TIC")
+
+    base_area = 0.5 * pyo.units.m**2
+    eos_factor = (
+            (base_area / (blk.unit_model.cell_width * blk.unit_model.cell_length))
+            * (blk.unit_model.cell_width * blk.unit_model.cell_length / base_area)**0.6
+    )
     if blk.find_component("capital_cost_rectifier") is not None:
         blk.capital_cost_constraint = pyo.Constraint(
             expr=blk.capital_cost
@@ -96,6 +102,7 @@ def cost_electrodialysis_stack(blk):
             * (
                 pyo.units.convert(
                     blk.costing_package.electrodialysis.membrane_capital_cost
+                    * eos_factor
                     * (
                         2
                         * blk.unit_model.cell_pair_num
@@ -103,6 +110,7 @@ def cost_electrodialysis_stack(blk):
                         * blk.unit_model.cell_length
                     )
                     + blk.costing_package.electrodialysis.stack_electrode_capital_cost
+                    * eos_factor
                     * (
                         2
                         * blk.unit_model.electrical_stage_num
@@ -120,6 +128,7 @@ def cost_electrodialysis_stack(blk):
             == blk.cost_factor
             * pyo.units.convert(
                 blk.costing_package.electrodialysis.membrane_capital_cost
+                * eos_factor
                 * (
                     2
                     * blk.unit_model.cell_pair_num
@@ -127,6 +136,7 @@ def cost_electrodialysis_stack(blk):
                     * blk.unit_model.cell_length
                 )
                 + blk.costing_package.electrodialysis.stack_electrode_capital_cost
+                * eos_factor
                 * (
                     2
                     * blk.unit_model.electrical_stage_num
@@ -141,6 +151,7 @@ def cost_electrodialysis_stack(blk):
         == pyo.units.convert(
             blk.costing_package.electrodialysis.factor_membrane_replacement
             * blk.costing_package.electrodialysis.membrane_capital_cost
+            * eos_factor
             * (
                 2
                 * blk.unit_model.cell_pair_num
@@ -149,6 +160,7 @@ def cost_electrodialysis_stack(blk):
             )
             + blk.costing_package.electrodialysis.factor_stack_electrode_replacement
             * blk.costing_package.electrodialysis.stack_electrode_capital_cost
+            * eos_factor
             * (
                 2
                 * blk.unit_model.electrical_stage_num
