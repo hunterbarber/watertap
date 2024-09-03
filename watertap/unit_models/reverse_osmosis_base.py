@@ -632,6 +632,8 @@ class ReverseOsmosisBaseData(InitializationMixin, UnitModelBlockData):
             )
 
         # pre-solve using interval arithmetic
+        self.feed_side.material_flow_dx[:, :, :, :].set_value(-1e-4)
+        self.feed_side.pressure_dx[:, :].set_value(-1e-4)
         interval_initializer(self)
 
         # Create solver

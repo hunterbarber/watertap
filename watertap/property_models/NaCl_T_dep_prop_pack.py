@@ -1464,7 +1464,7 @@ class NaClStateBlockData(StateBlockData):
         self.pressure_osm_phase = Var(
             self.params.phase_list,
             initialize=1e6,
-            bounds=(1, 1e8),
+            bounds=(1e-6, 1e8),
             units=pyunits.Pa,
             doc="Osmotic pressure",
         )
