@@ -135,7 +135,7 @@ def cost_membrane(blk, membrane_cost, factor_membrane_replacement):
 
     make_capital_cost_var(blk)
     make_fixed_operating_cost_var(blk)
-    blk.membrane_cost = pyo.Expression(expr=membrane_cost)
+    # blk.membrane_cost = pyo.Expression(expr=membrane_cost)
     blk.factor_membrane_replacement = pyo.Expression(expr=factor_membrane_replacement)
 
     blk.costing_package.add_cost_factor(blk, "TIC")
@@ -143,14 +143,14 @@ def cost_membrane(blk, membrane_cost, factor_membrane_replacement):
         expr=blk.capital_cost
         == blk.cost_factor
         * pyo.units.convert(
-            blk.membrane_cost * blk.unit_model.area,
+            blk.membrane_cost * blk.unit_model.area_capacity,
             to_units=blk.costing_package.base_currency,
         )
     )
     blk.fixed_operating_cost_constraint = pyo.Constraint(
         expr=blk.fixed_operating_cost
         == pyo.units.convert(
-            blk.factor_membrane_replacement * blk.membrane_cost * blk.unit_model.area,
+            blk.factor_membrane_replacement * blk.membrane_cost * blk.unit_model.area_capacity,
             to_units=blk.costing_package.base_currency
             / blk.costing_package.base_period,
         )

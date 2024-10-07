@@ -208,11 +208,6 @@ class ReverseOsmosis1DData(ReverseOsmosisBaseData):
             )
 
     def calculate_scaling_factors(self):
-        if iscale.get_scaling_factor(self.dens_solvent) is None:
-            sf = iscale.get_scaling_factor(
-                self.feed_side.properties[0, 0].dens_mass_phase["Liq"]
-            )
-            iscale.set_scaling_factor(self.dens_solvent, sf)
 
         super().calculate_scaling_factors()
 

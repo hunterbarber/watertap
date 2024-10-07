@@ -11,7 +11,7 @@
 #################################################################################
 
 from pyomo.common.config import ConfigValue, In
-from pyomo.environ import Var, units as pyunits, Expr_if, value
+from pyomo.environ import Var, NonNegativeReals, units as pyunits, Expression, Expr_if, value
 
 from enum import Enum, auto
 
@@ -94,7 +94,14 @@ class PumpIsothermalData(InitializationMixin, PumpData):
             self.flow_ratio = Var(
                 self.flowsheet().time,
                 initialize=1.0,
+                bounds=(0, 1.9),
                 doc="Ratio of pump flowrate to best efficiency point flowrate",
+                units=pyunits.dimensionless,
+            )
+
+            self.eta_ratio = Var(
+                self.flowsheet().time,
+                initialize=1.0,
                 units=pyunits.dimensionless,
             )
 
@@ -108,20 +115,12 @@ class PumpIsothermalData(InitializationMixin, PumpData):
 
         if self.config.variable_efficiency is VariableEfficiency.flow:
 
-            @self.Expression(
+            @self.Constraint(
                 self.flowsheet().time,
                 doc="Expression for variable pump efficiency based on flow only",
             )
-            def eta_ratio(b, t):
-                return Expr_if(
-                    b.flow_ratio[t] < 0.6,
-                    0.4,
-                    Expr_if(
-                        b.flow_ratio[t] > 1.4,
-                        0.4,
-                        -0.995 * b.flow_ratio[t] ** 2 + 1.977 * b.flow_ratio[t] + 0.018,
-                    ),
-                )
+            def eq_eta_ratio(b, t):
+                return b.eta_ratio[t] == -0.995 * b.flow_ratio[t] ** 2 + 1.977 * b.flow_ratio[t] + 0.018
 
         elif self.config.variable_efficiency is VariableEfficiency.flow_head:
             raise NotImplementedError(
@@ -138,6 +137,22 @@ class PumpIsothermalData(InitializationMixin, PumpData):
             def eta_constraint(b, t):
                 return b.efficiency_pump[t] == (b.bep_eta * b.eta_ratio[t])
 
+        # ---------------------------------------
+        # Establishing capacity variable
+        # ---------------------------------------
+        self.work_capacity = Var(
+            domain=NonNegativeReals,
+            bounds=(0, 1e8),
+            initialize=1e5,
+            doc="Work capacity",
+            units=pyunits.watt,
+        )
+
+        @self.Constraint(self.flowsheet().config.time, doc="Work capacity")
+        def eq_work_capacity(b, t):
+            return b.work_mechanical[t] <= b.work_capacity
+
+
     def calculate_scaling_factors(self):
         super().calculate_scaling_factors()
 
@@ -146,6 +161,10 @@ class PumpIsothermalData(InitializationMixin, PumpData):
                 self.control_volume.properties_in[0].temperature
             )
             iscale.constraint_scaling_transform(c, sf)
+
+        if hasattr(self, "work_capacity"):
+            if iscale.get_scaling_factor(self.work_capacity) is None:
+                iscale.set_scaling_factor(self.work_capacity, 1e-4)
 
         if hasattr(self, "bep_flow"):
             if iscale.get_scaling_factor(self.bep_flow) is None:

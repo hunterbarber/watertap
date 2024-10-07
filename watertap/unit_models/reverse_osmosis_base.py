@@ -193,8 +193,8 @@ class ReverseOsmosisBaseData(InitializationMixin, UnitModelBlockData):
         def eq_recovery_vol_phase(b, t):
             return (
                 b.recovery_vol_phase[t, "Liq"]
+                * b.feed_side.properties[t, self.first_element].flow_vol_phase["Liq"]
                 == b.mixed_permeate[t].flow_vol_phase["Liq"]
-                / b.feed_side.properties[t, self.first_element].flow_vol_phase["Liq"]
             )
 
         solvent_set = self.config.property_package.solvent_set
@@ -239,12 +239,27 @@ class ReverseOsmosisBaseData(InitializationMixin, UnitModelBlockData):
         # rejection
         @self.Constraint(self.flowsheet().config.time, solute_set)
         def eq_rejection_phase_comp(b, t, j):
-            return b.rejection_phase_comp[t, "Liq", j] == 1 - (
+            return (
+                (1 - b.rejection_phase_comp[t, "Liq", j])
+                * b.feed_side.properties[t, self.first_element].conc_mass_phase_comp["Liq", j] ==
                 b.mixed_permeate[t].conc_mass_phase_comp["Liq", j]
-                / b.feed_side.properties[t, self.first_element].conc_mass_phase_comp[
-                    "Liq", j
-                ]
             )
+
+        self.burst_pressure = Var(
+            initialize=85e5,
+            bounds=(10e5, 200e5),
+            domain=NonNegativeReals,
+            units=pyunits.Pa,
+            doc="Burst pressure",
+        )
+
+        @self.Constraint(
+            self.flowsheet().config.time,
+            self.difference_elements,
+            doc="Burst pressure",
+        )
+        def eq_burst_pressure(b, t, x):
+            return b.feed_side.properties[t, x].pressure <= b.burst_pressure
 
         self._add_flux_balance()
         if self.config.has_pressure_change:
@@ -286,6 +301,18 @@ class ReverseOsmosisBaseData(InitializationMixin, UnitModelBlockData):
             units=units_meta("length") ** 2,
             doc="Total Membrane area",
         )
+
+        self.area_capacity = Var(
+            initialize=15,
+            bounds=(1e-1, 1e5),
+            domain=NonNegativeReals,
+            units=units_meta("length") ** 2,
+            doc="Total Membrane area capacity",
+        )
+
+        @self.Constraint(doc="Area capacity")
+        def eq_area_capacity(b):
+            return b.area <= b.area_capacity
 
         if include_constraint:
             if self.config.module_type == ModuleType.flat_sheet:
@@ -336,13 +363,6 @@ class ReverseOsmosisBaseData(InitializationMixin, UnitModelBlockData):
             doc="Solute permeability coeff.",
         )
 
-        # TODO: add water density to NaCl prop model and remove here (or use IDAES version)
-        self.dens_solvent = Param(
-            initialize=1000,
-            units=units_meta("mass") * units_meta("length") ** -3,
-            doc="Pure water density",
-        )
-
         if self.config.transport_model == TransportModel.SKK:
             self.reflect_coeff = Var(
                 initialize=0.9,
@@ -365,7 +385,7 @@ class ReverseOsmosisBaseData(InitializationMixin, UnitModelBlockData):
             self.config.property_package.component_list,
             initialize=lambda b, t, x, p, j: 5e-4 if j in solvent_set else 1e-6,
             bounds=lambda b, t, x, p, j: (
-                (1e-4, 3e-2) if j in solvent_set else (1e-8, 1e-3)
+                (0, 3e-2) if j in solvent_set else (0, 1e-3)
             ),
             units=units_meta("mass")
             * units_meta("length") ** -2
@@ -374,6 +394,25 @@ class ReverseOsmosisBaseData(InitializationMixin, UnitModelBlockData):
         )
 
         if self.config.transport_model == TransportModel.SD:
+
+            self.tcf = Var(
+                self.flowsheet().config.time,
+                self.difference_elements,
+                initialize=1,
+                bounds=(0, 5),
+                units=pyunits.dimensionless,
+                doc="Temperature correction factor",
+            )
+
+            @self.Constraint(
+                self.flowsheet().config.time,
+                self.difference_elements,
+                doc="Temperature correction factor, valid under 25 C",
+            )
+            def eq_tcf(b, t, x):
+                return b.tcf[t, x] == exp(
+                    3020 * (1/298.15 - 1/(pyunits.convert(b.feed_side.properties[t, x].temperature, to_units=pyunits.K) * pyunits.K**-1))
+                )
 
             @self.Constraint(
                 self.flowsheet().config.time,
@@ -388,9 +427,9 @@ class ReverseOsmosisBaseData(InitializationMixin, UnitModelBlockData):
                 interface = b.feed_side.properties_interface[t, x]
                 comp = self.config.property_package.get_component(j)
                 if comp.is_solvent():
-                    return b.flux_mass_phase_comp[t, x, p, j] == b.A_comp[
+                    return b.flux_mass_phase_comp[t, x, p, j] == b.tcf[t, x] * b.A_comp[
                         t, j
-                    ] * b.dens_solvent * (
+                    ] * prop_feed.dens_mass_phase["Liq"] * (
                         (prop_feed.pressure - prop_perm.pressure)
                         - (
                             interface.pressure_osm_phase[p]
@@ -426,7 +465,7 @@ class ReverseOsmosisBaseData(InitializationMixin, UnitModelBlockData):
                 if comp.is_solvent():
                     return b.flux_mass_phase_comp[t, x, p, j] == b.A_comp[
                         t, j
-                    ] * b.dens_solvent * (
+                    ] * prop_feed.dens_mass_phase["Liq"] * (
                         (prop_feed.pressure - prop_perm.pressure)
                         - b.reflect_coeff
                         * (
@@ -440,7 +479,7 @@ class ReverseOsmosisBaseData(InitializationMixin, UnitModelBlockData):
                         - prop_perm.conc_mass_phase_comp[p, j]
                     ) + (1 - b.reflect_coeff) * (
                         (
-                            (b.flux_mass_phase_comp[t, x, p, "H2O"] / b.dens_solvent)
+                            (b.flux_mass_phase_comp[t, x, p, "H2O"] / prop_feed.dens_mass_phase["Liq"])
                             * interface.conc_mass_phase_comp[p, j]
                         )
                     )
@@ -476,14 +515,12 @@ class ReverseOsmosisBaseData(InitializationMixin, UnitModelBlockData):
                 doc="Concentration polarization",
             )
             def eq_concentration_polarization(b, t, x, j):
-                jw = b.flux_mass_phase_comp[t, x, "Liq", "H2O"] / self.dens_solvent
+                jw = b.flux_mass_phase_comp[t, x, "Liq", "H2O"] / b.feed_side.properties[t, x].dens_mass_phase["Liq"]
                 js = b.flux_mass_phase_comp[t, x, "Liq", j]
-                return b.feed_side.properties_interface[t, x].conc_mass_phase_comp[
-                    "Liq", j
-                ] == b.feed_side.properties[t, x].conc_mass_phase_comp["Liq", j] * exp(
-                    jw / self.feed_side.K[t, x, j]
-                ) - js / jw * (
-                    exp(jw / self.feed_side.K[t, x, j]) - 1
+                return (
+                    b.feed_side.properties_interface[t, x].conc_mass_phase_comp["Liq", j] * jw ==
+                    jw * b.feed_side.properties[t, x].conc_mass_phase_comp["Liq", j] * exp(jw / self.feed_side.K[t, x, j])
+                    - js * (exp(jw / self.feed_side.K[t, x, j]) - 1)
                 )
 
         return self.eq_flux_mass
@@ -632,8 +669,8 @@ class ReverseOsmosisBaseData(InitializationMixin, UnitModelBlockData):
             )
 
         # pre-solve using interval arithmetic
-        self.feed_side.material_flow_dx[:, :, :, :].set_value(-1e-4)
-        self.feed_side.pressure_dx[:, :].set_value(-1e-4)
+        self.feed_side.material_flow_dx[:, :, :, :] = 0
+        self.feed_side.pressure_dx[:, :] = 0
         interval_initializer(self)
 
         # Create solver
@@ -811,6 +848,13 @@ class ReverseOsmosisBaseData(InitializationMixin, UnitModelBlockData):
         if iscale.get_scaling_factor(self.area) is None:
             sf = iscale.get_scaling_factor(self.area, default=10, warning=True)
             iscale.set_scaling_factor(self.area, sf)
+            iscale.set_scaling_factor(self.area_capacity, sf)
+
+        if iscale.get_scaling_factor(self.burst_pressure) is None:
+            iscale.set_scaling_factor(self.burst_pressure, 1e-5)
+
+        for ind, v in self.tcf.items():
+            iscale.set_scaling_factor(v, 1)
 
         if iscale.get_scaling_factor(self.A_comp) is None:
             iscale.set_scaling_factor(self.A_comp, 1e12)
@@ -870,7 +914,7 @@ class ReverseOsmosisBaseData(InitializationMixin, UnitModelBlockData):
                 if comp.is_solvent():  # scaling based on solvent flux equation
                     sf = (
                         iscale.get_scaling_factor(self.A_comp[t, j])
-                        * iscale.get_scaling_factor(self.dens_solvent)
+                        * 1e-3
                         * iscale.get_scaling_factor(
                             self.feed_side.properties[t, x].pressure
                         )

@@ -1026,9 +1026,9 @@ class NaClStateBlockData(StateBlockData):
         )
 
         def rule_mass_frac_phase_comp(b, p, j):
-            return b.mass_frac_phase_comp[p, j] == b.flow_mass_phase_comp[p, j] / sum(
+            return b.mass_frac_phase_comp[p, j] * sum(
                 b.flow_mass_phase_comp[p, j] for j in self.params.component_list
-            )
+            ) == b.flow_mass_phase_comp[p, j]
 
         self.eq_mass_frac_phase_comp = Constraint(
             self.params.phase_list,
@@ -1091,8 +1091,8 @@ class NaClStateBlockData(StateBlockData):
         def rule_flow_vol_phase(b, p):
             return (
                 b.flow_vol_phase[p]
+                * b.dens_mass_phase[p]
                 == sum(b.flow_mass_phase_comp[p, j] for j in self.params.component_list)
-                / b.dens_mass_phase[p]
             )
 
         self.eq_flow_vol_phase = Constraint(
@@ -1183,9 +1183,9 @@ class NaClStateBlockData(StateBlockData):
         def rule_molality_phase_comp(b, p, j):
             return (
                 self.molality_phase_comp[p, j]
+                * (1 - b.mass_frac_phase_comp[p, j])
+                * b.params.mw_comp[j]
                 == b.mass_frac_phase_comp[p, j]
-                / (1 - b.mass_frac_phase_comp[p, j])
-                / b.params.mw_comp[j]
             )
 
         self.eq_molality_phase_comp = Constraint(
@@ -1384,7 +1384,7 @@ class NaClStateBlockData(StateBlockData):
             self.params.phase_list,
             ["NaCl"],
             initialize=1e-9,
-            bounds=(1e-10, 1e-8),
+            bounds=(0, 1e-8),
             units=pyunits.m**2 * pyunits.s**-1,
             doc="Diffusivity",
         )

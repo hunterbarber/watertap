@@ -28,11 +28,6 @@ def build_reverse_osmosis_cost_param_block(blk):
         doc="Membrane replacement factor [fraction of membrane replaced/year]",
         units=pyo.units.year**-1,
     )
-    blk.membrane_cost = pyo.Var(
-        initialize=30,
-        doc="Membrane cost",
-        units=pyo.units.USD_2018 / (pyo.units.meter**2),
-    )
     blk.high_pressure_membrane_cost = pyo.Var(
         initialize=75,
         doc="Membrane cost",
@@ -54,10 +49,21 @@ def cost_reverse_osmosis(blk, ro_type=ROType.standard):
         ro_type: ROType Enum indicating reverse osmosis type,
             default = ROType.standard
     """
+
+    blk.membrane_cost = pyo.Var(
+        initialize=30,
+        doc="Membrane cost",
+        units=pyo.units.USD_2018 / pyo.units.meter**2,
+    )
+    blk.membrane_cost_constraint = pyo.Constraint(
+        expr=blk.membrane_cost
+        == (15*pyo.units.USD_2018 / pyo.units.meter**2)*pyo.exp(blk.unit_model.burst_pressure/(100e5*pyo.units.Pa))
+    )
+
     if ro_type == ROType.standard:
         return cost_membrane(
             blk,
-            blk.costing_package.reverse_osmosis.membrane_cost,
+            blk.membrane_cost,
             blk.costing_package.reverse_osmosis.factor_membrane_replacement,
         )
     elif ro_type == ROType.high_pressure:
