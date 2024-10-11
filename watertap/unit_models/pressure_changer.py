@@ -11,7 +11,7 @@
 #################################################################################
 
 from pyomo.common.config import ConfigValue, In
-from pyomo.environ import Var, NonNegativeReals, units as pyunits, Expression, Expr_if, value
+from pyomo.environ import Var, NonNegativeReals, units as pyunits, value
 
 from enum import Enum, auto
 
@@ -81,12 +81,14 @@ class PumpIsothermalData(InitializationMixin, PumpData):
             # create additional pyomo variables
             self.bep_flow = Var(
                 initialize=1.0,
+                domain=NonNegativeReals,
                 doc="Best efficiency point flowrate of the centrifugal pump",
                 units=pyunits.m**3 / pyunits.s,
             )
 
             self.bep_eta = Var(
                 initialize=0.8,
+                domain=NonNegativeReals,
                 doc="Best efficiency of the centrifugal pump",
                 units=pyunits.dimensionless,
             )
@@ -94,7 +96,8 @@ class PumpIsothermalData(InitializationMixin, PumpData):
             self.flow_ratio = Var(
                 self.flowsheet().time,
                 initialize=1.0,
-                bounds=(0, 1.9),
+                bounds=(0.01, 1.99),
+                domain=NonNegativeReals,
                 doc="Ratio of pump flowrate to best efficiency point flowrate",
                 units=pyunits.dimensionless,
             )
@@ -102,6 +105,8 @@ class PumpIsothermalData(InitializationMixin, PumpData):
             self.eta_ratio = Var(
                 self.flowsheet().time,
                 initialize=1.0,
+                bounds=(0, 1),
+                domain=NonNegativeReals,
                 units=pyunits.dimensionless,
             )
 
@@ -117,7 +122,7 @@ class PumpIsothermalData(InitializationMixin, PumpData):
 
             @self.Constraint(
                 self.flowsheet().time,
-                doc="Expression for variable pump efficiency based on flow only",
+                doc="Variable pump efficiency based on flow only",
             )
             def eq_eta_ratio(b, t):
                 return b.eta_ratio[t] == -0.995 * b.flow_ratio[t] ** 2 + 1.977 * b.flow_ratio[t] + 0.018
@@ -137,20 +142,18 @@ class PumpIsothermalData(InitializationMixin, PumpData):
             def eta_constraint(b, t):
                 return b.efficiency_pump[t] == (b.bep_eta * b.eta_ratio[t])
 
-        # ---------------------------------------
-        # Establishing capacity variable
-        # ---------------------------------------
-        self.work_capacity = Var(
-            domain=NonNegativeReals,
-            bounds=(0, 1e8),
+        # establishing nominal work for costing
+        self.work_nominal = Var(
             initialize=1e5,
-            doc="Work capacity",
+            bounds=(0, 1e8),
+            domain=NonNegativeReals,
             units=pyunits.watt,
+            doc="Work nominal",
         )
 
-        @self.Constraint(self.flowsheet().config.time, doc="Work capacity")
-        def eq_work_capacity(b, t):
-            return b.work_mechanical[t] <= b.work_capacity
+        @self.Constraint(self.flowsheet().config.time, doc="Work nominal, deactivate for operation problem")
+        def eq_work_nominal(b, t):
+            return b.work_mechanical[t] == b.work_nominal
 
 
     def calculate_scaling_factors(self):
@@ -161,10 +164,6 @@ class PumpIsothermalData(InitializationMixin, PumpData):
                 self.control_volume.properties_in[0].temperature
             )
             iscale.constraint_scaling_transform(c, sf)
-
-        if hasattr(self, "work_capacity"):
-            if iscale.get_scaling_factor(self.work_capacity) is None:
-                iscale.set_scaling_factor(self.work_capacity, 1e-4)
 
         if hasattr(self, "bep_flow"):
             if iscale.get_scaling_factor(self.bep_flow) is None:
@@ -185,9 +184,17 @@ class PumpIsothermalData(InitializationMixin, PumpData):
                 if iscale.get_scaling_factor(self.flow_ratio[t]) is None:
                     iscale.set_scaling_factor(self.flow_ratio[t], 1)
 
+        if hasattr(self, "eta_ratio"):
+            if iscale.get_scaling_factor(self.work_nominal) is None:
+                iscale.set_scaling_factor(self.work_nominal, 1)
+
             if hasattr(self, "efficiency_pump"):
                 if iscale.get_scaling_factor(self.efficiency_pump[t]) is None:
                     iscale.set_scaling_factor(self.efficiency_pump[t], 1)
+
+            if hasattr(self, "work_nominal"):
+                if iscale.get_scaling_factor(self.work_nominal) is None:
+                    iscale.set_scaling_factor(self.work_nominal, 1e-4)
 
             # scale constraints
 

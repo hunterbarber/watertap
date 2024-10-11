@@ -81,7 +81,7 @@ def cost_high_pressure_pump(blk, cost_electricity_flow=True):
         == blk.cost_factor
         * pyo.units.convert(
             blk.costing_package.high_pressure_pump.cost
-            * pyo.units.convert(blk.unit_model.work_capacity, pyo.units.W),
+            * pyo.units.convert(blk.unit_model.work_nominal, pyo.units.W),
             to_units=blk.costing_package.base_currency,
         )
     )

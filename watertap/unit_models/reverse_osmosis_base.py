@@ -245,6 +245,7 @@ class ReverseOsmosisBaseData(InitializationMixin, UnitModelBlockData):
                 b.mixed_permeate[t].conc_mass_phase_comp["Liq", j]
             )
 
+        # burst pressure for costing
         self.burst_pressure = Var(
             initialize=85e5,
             bounds=(10e5, 200e5),
@@ -255,7 +256,7 @@ class ReverseOsmosisBaseData(InitializationMixin, UnitModelBlockData):
 
         @self.Constraint(
             self.flowsheet().config.time,
-            self.difference_elements,
+            self.length_domain,
             doc="Burst pressure",
         )
         def eq_burst_pressure(b, t, x):
@@ -304,10 +305,10 @@ class ReverseOsmosisBaseData(InitializationMixin, UnitModelBlockData):
 
         self.area_capacity = Var(
             initialize=15,
-            bounds=(1e-1, 1e5),
+            bounds=(1e-1, 1e6),
             domain=NonNegativeReals,
             units=units_meta("length") ** 2,
-            doc="Total Membrane area capacity",
+            doc="Total membrane area capacity",
         )
 
         @self.Constraint(doc="Area capacity")
@@ -400,6 +401,7 @@ class ReverseOsmosisBaseData(InitializationMixin, UnitModelBlockData):
                 self.difference_elements,
                 initialize=1,
                 bounds=(0, 5),
+                domain=NonNegativeReals,
                 units=pyunits.dimensionless,
                 doc="Temperature correction factor",
             )
@@ -850,9 +852,6 @@ class ReverseOsmosisBaseData(InitializationMixin, UnitModelBlockData):
             iscale.set_scaling_factor(self.area, sf)
             iscale.set_scaling_factor(self.area_capacity, sf)
 
-        if iscale.get_scaling_factor(self.burst_pressure) is None:
-            iscale.set_scaling_factor(self.burst_pressure, 1e-5)
-
         for ind, v in self.tcf.items():
             iscale.set_scaling_factor(v, 1)
 
@@ -884,6 +883,9 @@ class ReverseOsmosisBaseData(InitializationMixin, UnitModelBlockData):
             if iscale.get_scaling_factor(v) is None:
                 iscale.set_scaling_factor(v, 1)
 
+        if iscale.get_scaling_factor(self.burst_pressure) is None:
+            iscale.set_scaling_factor(self.burst_pressure, 1e-5)
+
         if not hasattr(self, "_permeate_scaled_properties"):
             self._permeate_scaled_properties = ComponentSet()
 
@@ -914,7 +916,7 @@ class ReverseOsmosisBaseData(InitializationMixin, UnitModelBlockData):
                 if comp.is_solvent():  # scaling based on solvent flux equation
                     sf = (
                         iscale.get_scaling_factor(self.A_comp[t, j])
-                        * 1e-3
+                        * iscale.get_scaling_factor(self.feed_side.properties[t, x].dens_mass_phase["Liq"])
                         * iscale.get_scaling_factor(
                             self.feed_side.properties[t, x].pressure
                         )
